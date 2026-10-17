@@ -8,6 +8,9 @@
 ## Soal 1.
 Ketika Curtain menutup Shibuya, jalur komunikasi antar zona Jujutsu High terputus. Pulihkan konektivitas dasar dengan mengonfigurasi jichi: eth0 memperoleh WAN dari NAT, sedangkan eth1–eth4 menjadi gateway Network 1–4 sesuai tabel pemetaan. Aktifkan IPv4 forwarding dan source NAT, lalu tetapkan IP statis host infrastruktur sesuai tabel spesifikasi. Buktikan konektivitas setiap host ke gateway dan akses eksternal dari host yang relevan.
 
+### File-File Konfigurasi Setiap Nodes
+[script config nodes](script-config.md)
+
 ### Testing
 - `ping -c 2 8.8.8.8`
 ![dokumentasi](assets/1.testing-gugel.png)
