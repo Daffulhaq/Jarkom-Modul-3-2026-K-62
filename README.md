@@ -127,7 +127,8 @@ ip route
 
 - Pada `tengen`, membuktikan rentang `.2.36–.2.69` tidak boleh dialokasikan (output harus kosong):
 `awk '/^lease/{print $2}' /var/lib/dhcp/dhcpd.leases | grep -E '^192\.242\.2\.(3[6-9]|[4-6][0-9])$'`
-![dokumentasi](assets/4.range-terlarang.png)
+<img width="690" height="45" alt="Screenshot 2026-10-18 215342" src="https://github.com/user-attachments/assets/42103c5d-8677-4891-a32b-3285b2a6c2a1" />
+
 
 ## Soal 5.
 Setiap tim lapangan memiliki durasi operasi yang berbeda. Pada Network 3, berikan short lease 30 menit (1800 detik) kepada ino dan kusakabe, serta long lease 12 jam (43200 detik) kepada miwa. Gunakan pool short lease [PREFIX IP].3.10–[PREFIX IP].3.89 dan pool long lease [PREFIX IP].3.100–[PREFIX IP].3.199. Sesuaikan default-lease-time dan max-lease-time untuk setiap kelas client. Berikan pula DHCP options berupa DNS [PREFIX IP].1.2 dan [PREFIX IP].1.3, serta domain-search <xxxx>.com.
@@ -423,15 +424,15 @@ Untuk pengerjaan soal ini, jalankan `master.sh` di utahime dan `slave.sh` di sho
 dig @192.242.1.2 jujutsu.K62.com NS +noall +answer
 dig @192.242.1.2 jujutsu.K62.com SOA +noall +answer
 ```
-![dokumentasi](assets/11.bind9-aktif-utahime.png)
+<img width="1368" height="356" alt="11-dns-master" src="https://github.com/user-attachments/assets/ed3fb310-3a96-4f85-8a3c-d64de20405f5" />
 
 - Cek slave (`shoko`):
 ```bash
 ls -l /var/lib/bind/
 dig @192.242.1.3 jujutsu.K62.com SOA +noall +answer
 ```
-![dokumentasi](assets/11.bind9-aktif-shoko.png)
-![dokumentasi](assets/11.zone-file-slave.png)
+<img width="1648" height="977" alt="11-dns-slave" src="https://github.com/user-attachments/assets/948d7fce-0c1c-4392-89f4-3ad85e3651be" />
+
 
 - Uji sinkronisasi serial:
 ```bash
@@ -443,7 +444,9 @@ service named restart
 # Di shoko:
 dig @192.242.1.3 jujutsu.K62.com SOA +noall +answer
 ```
-![dokumentasi](assets/11.sinkronisasi-serial.png)
+<img width="706" height="243" alt="Screenshot 2026-10-18 215829" src="https://github.com/user-attachments/assets/ac0bfc1a-ce53-4c2f-af45-9aa627b9e65f" />
+
+<img width="703" height="137" alt="Screenshot 2026-10-18 215841" src="https://github.com/user-attachments/assets/eb7ae6b7-0672-418d-9e30-dfc37d55f9eb" />
 
 ## Soal 12
 Peta domain harus memetakan pintu masuk utama dan tetap bisa mencari alamat di luar kawasan Shibuya. Pada utahime, buat A record jujutsu.<xxxx>.com yang mengarah ke gojo, serta CNAME www yang merujuk ke domain utama tersebut. Buat pula Reverse DNS (zona PTR) untuk melacak IP gojo kembali ke domain resminya, dan aktifkan fitur DNS Forwarder pada BIND9 mengarah ke IP gateway internet (192.168.122.1). Uji dari client dengan dig untuk mengecek CNAME, PTR, dan buktikan client tetap bisa melakukan ping ke domain internet seperti google.com.
@@ -459,10 +462,9 @@ dig -x 192.242.1.4 +noall +answer
 dig google.com +short
 ping -c 3 google.com
 ```
-![dokumentasi](assets/12.dig-a-record.png)
-![dokumentasi](assets/12.dig-cname.png)
-![dokumentasi](assets/12.dig-ptr.png)
-![dokumentasi](assets/12.ping-google.png)
+<img width="852" height="957" alt="12-part1" src="https://github.com/user-attachments/assets/4c98a8c5-8ccd-4c1d-bdf8-4efa7fe28a27" />
+
+<img width="1512" height="650" alt="12-part2" src="https://github.com/user-attachments/assets/5d56e8de-887f-46bc-8249-546bf6a10fd3" />
 
 ## Soal 13
 Kepala Sekolah Yaga dan Inumaki mendirikan database terpusat yang redundan agar log aktivitas kutukan tetap aman tersimpan. Konfigurasikan MariaDB pada yaga sebagai DB-Master dan inumaki sebagai DB-Slave. Buat database db_shibuya_<xxxx> beserta tabel request_logs di Master, aktifkan binary logging (log-bin, server-id), lalu hubungkan inumaki sebagai Slave yang menyalin data secara realtime dengan CHANGE MASTER TO. Berikan hak akses remote bagi seluruh node di Network 4, lalu buktikan replikasi berhasil dengan memasukkan data baru di Master dan memeriksa hasilnya di Slave.
@@ -485,13 +487,14 @@ mysql -e "SHOW MASTER STATUS\G"
 mysql -e "USE db_shibuya_K62; SHOW TABLES;"
 mysql -e "SELECT user, host FROM mysql.user WHERE user IN ('shibuya','repl');"
 ```
-![dokumentasi](assets/13.master-status.png)
+<img width="1737" height="965" alt="13-yaga" src="https://github.com/user-attachments/assets/425a8823-a504-4a03-83bd-0b540c18e2d7" />
 
 - Di `inumaki` (slave):
 ```bash
 mysql -e "SHOW SLAVE STATUS\G" | grep -E "Slave_IO_Running|Slave_SQL_Running|Seconds_Behind_Master|Last_.*Error"
 ```
-![dokumentasi](assets/13.slave-status.png)
+<img width="1566" height="961" alt="13-inumaki" src="https://github.com/user-attachments/assets/56772e5d-b81d-42c7-b264-acdeacade038" />
+
 
 - Uji replikasi:
 ```bash
@@ -501,14 +504,16 @@ mysql -e "USE db_shibuya_K62; INSERT INTO request_logs (worker, endpoint, client
 # Di inumaki:
 mysql -e "SELECT * FROM db_shibuya_K62.request_logs ORDER BY id DESC LIMIT 3;"
 ```
-![dokumentasi](assets/13.replikasi-bukti.png)
+<img width="1566" height="961" alt="13-inumaki" src="https://github.com/user-attachments/assets/4376e655-5f2e-43b3-a4dc-1de85fe936d3" />
+
 
 - Uji hak akses remote (dari node lain):
 ```bash
 apt-get update && apt-get install -y mariadb-client
 mysql -h 192.242.4.11 -ushibuya -pshibuya123 -e "SELECT COUNT(*) FROM db_shibuya_K62.request_logs;"
 ```
-![dokumentasi](assets/13.remote-access.png)
+<img width="1382" height="558" alt="13-remote-access" src="https://github.com/user-attachments/assets/06157b43-b961-4f87-a290-040df91ce9ea" />
+
 
 ## Soal 14
 Para penyihir lapangan bersiaga di Data Center sebagai pekerja backend untuk memproses aplikasi. Pasang Nginx dan PHP-FPM pada maki dan panda untuk menyajikan web frontend yang menampilkan hostname masing-masing. Pada nanami, todo, dan kirara, siapkan layanan API yang mencatat log request ke database yaga. Konfigurasikan virtual host agar worker merespons domain layanan yang ditentukan. Batasi akses langsung dari klien ke worker, web worker hanya menerima trafik melalui jalur proxy web yang ditentukan, sedangkan worker API hanya menerima trafik melalui geto. Uji bahwa akses langsung dari klien ditolak, sementara akses melalui reverse proxy tetap berhasil.
@@ -522,8 +527,15 @@ Jalankan file config pada node `maki`, `panda`, `nanami`, `todo`, dan `kirara` s
 # Di maki, panda, nanami, todo, kirara:
 curl -s http://127.0.0.1
 ```
-![dokumentasi](assets/14.worker-lokal.png)
-![dokumentasi](assets/14.api-lokal.png)
+<img width="465" height="60" alt="14-curl-maki" src="https://github.com/user-attachments/assets/5e4b9a0d-f266-4f97-b1f2-52a1cb8e9c93" />
+
+<img width="458" height="45" alt="14-curl-panda" src="https://github.com/user-attachments/assets/6cf2d488-a96a-4501-ad11-e7c475498811" />
+
+<img width="691" height="52" alt="14-curl-nanami" src="https://github.com/user-attachments/assets/60a05bbc-a035-488d-853a-e015aadcae0c" />
+
+<img width="662" height="52" alt="14-curl-todo" src="https://github.com/user-attachments/assets/6b5effee-36fe-4fb0-abff-139657105901" />
+
+<img width="692" height="50" alt="14-curl-kirara" src="https://github.com/user-attachments/assets/b41380d8-6f08-41d6-93de-a57192d76ae1" />
 
 - Akses langsung dari client:
 ```bash
@@ -531,7 +543,7 @@ curl -s http://127.0.0.1
 curl -s -o /dev/null -w "%{http_code}\n" http://192.242.4.21  
 curl -s -o /dev/null -w "%{http_code}\n" http://192.242.4.23  
 ```
-![dokumentasi](assets/14.direct-denied.png)
+<img width="745" height="140" alt="14-akses-client" src="https://github.com/user-attachments/assets/d0424cc2-0ac5-4a8b-b295-8e276ac2e51b" />
 
 ## Soal 15
 Geto bertugas mengendalikan pembagian beban request API di internal Data Center agar server tidak tumbang bersamaan. Konfigurasikan Nginx pada geto sebagai Load Balancer internal dengan upstream api_cluster yang mengarahkan trafik ke nanami dan todo. Terapkan algoritma Weighted Round Robin dengan bobot 3:1, di mana nanami menerima porsi beban tiga kali lebih banyak daripada todo. Buktikan distribusi beban ini dengan melakukan loop request berulang kali ke geto dari jaringan lokal Data Center dan periksa rasio responnya.
@@ -549,7 +561,8 @@ for i in $(seq 1 40); do
   curl -s http://192.242.4.20/ | grep -o '"worker":"[a-z]*"'
 done | sort | uniq -c
 ```
-![dokumentasi](assets/15.wrr-geto.png)
+<img width="741" height="112" alt="15-load-balance" src="https://github.com/user-attachments/assets/0927e771-c4e2-4e19-b210-ee5468ea9a67" />
+
 
 ## Soal 16
 Gojo berdiri di perbatasan DMZ sebagai gerbang publik tunggal bagi seluruh client dari luar maupun dalam. Konfigurasikan Nginx pada gojo untuk melayani domain jujutsu.<xxxx>.com dan www.jujutsu.<xxxx>.com menggunakan metode Path-Based Routing. Atur agar request root (/) diteruskan secara Round Robin ke worker frontend (maki dan panda), sedangkan request ke path /api diteruskan langsung ke geto. Uji dari client Divisi A atau B bahwa akses ke web utama dibalas oleh Maki/Panda, sedangkan akses ke /api diteruskan dan dijawab oleh Nanami/Todo.
@@ -568,15 +581,17 @@ for i in $(seq 1 20); do
   curl -s "http://jujutsu.K62.com/?nocache=$RANDOM"
   echo
 done | grep -oi "Hostname: [a-z]*" | sort | uniq -c
+```
+<img width="700" height="110" alt="16-maki-panda" src="https://github.com/user-attachments/assets/71563c0f-35d5-4469-a5ab-7525a7d1a2df" />
 
+```
 # /api -> geto
 for i in $(seq 1 4); do
   curl -s "http://jujutsu.K62.com/api"
   echo
 done
 ```
-![dokumentasi](assets/16.gojo-rr-frontend.png)
-![dokumentasi](assets/16.gojo-api-geto.png)
+<img width="567" height="822" alt="15-api" src="https://github.com/user-attachments/assets/29c9b1db-46eb-4e68-adc5-a3e6bd321c41" />
 
 ## Soal 17
 Komando pusat perlu mengetahui IP asli klien yang mengirimkan request tanpa tertukar dengan IP proxy perantara. Konfigurasikan gojo dan geto agar meneruskan informasi alamat klien melalui header X-Real-IP dan X-Forwarded-For. Pastikan geto hanya mempercayai informasi alamat klien yang diterima dari proxy terpercaya, dan skrip API menyimpan alamat klien yang telah diverifikasi ke kolom client_ip pada tabel request_logs di database yaga. Uji dengan mengirimkan request dari klien Network 2 dan Network 3 ke endpoint /api, kemudian periksa database untuk memastikan alamat yang tercatat sesuai dengan IP klien asal, bukan IP gojo atau geto.
@@ -586,12 +601,18 @@ Komando pusat perlu mengetahui IP asli klien yang mengirimkan request tanpa tert
 ```bash
 # Di itadori:
 curl -s "http://jujutsu.K62.com/api"; echo
+```
+<img width="687" height="87" alt="17-ip-itadori" src="https://github.com/user-attachments/assets/ade2ad86-5757-444a-908c-a339fbc2f620" />
 
+```
 # Di ino:
 curl -s "http://jujutsu.K62.com/api"; echo
+```
+<img width="676" height="51" alt="17-ino" src="https://github.com/user-attachments/assets/8ce8c93e-b217-4f76-a0fb-4c2b7c85ab8f" />
 
+```
 # Di yaga:
 mysql -e "SELECT id, worker, client_ip, created_at FROM db_shibuya_K62.request_logs ORDER BY id DESC LIMIT 6;"
 ```
-![dokumentasi](assets/17.api-request-clients.png)
-![dokumentasi](assets/17.db-client-ip.png)
+<img width="920" height="278" alt="17" src="https://github.com/user-attachments/assets/543bbefb-1fa5-4a2d-8dba-45235f76c5c8" />
+
