@@ -1,4 +1,4 @@
-## ===== [ jinchi (router) ] =====
+## ===== [ jichi (router) ] =====
 ``` bash
 #!/bin/bash
 
