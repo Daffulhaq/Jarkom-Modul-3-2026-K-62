@@ -109,22 +109,21 @@ dhclient -v eth0
 ip -br addr show eth0
 ip route
 ```
-
 - `itadori` 
-![dokumentasi](assets/4.testing-itadori.png)
+<img width="756" height="417" alt="4 lease-itadori" src="https://github.com/user-attachments/assets/624f0694-e9f6-4c66-962f-1d51135147f8" />
 
 - `fushiguro` 
-![dokumentasi](assets/4.testing-fushiguro.png)
+<img width="758" height="637" alt="4 lease-fushiguro" src="https://github.com/user-attachments/assets/56caa5ac-58ff-4545-be5d-28d89a65e2e4" />
 
 - `zenin` 
-![dokumentasi](assets/4.testing-zenin.png)
+<img width="761" height="675" alt="4 lease-zenin" src="https://github.com/user-attachments/assets/72365eb9-eb9f-4a58-b12d-617746a22378" />
 
 - `okkotsu` 
-![dokumentasi](assets/4.testing-okkotsu.png)
+<img width="760" height="536" alt="4 lease-okkotsu" src="https://github.com/user-attachments/assets/6ae106e2-51a3-4d1a-9743-aaeafe77b415" />
 
 - Pada `tengen`, ringkasan lease (IP, MAC, status):
 `awk '/^lease/{ip=$2} $1=="binding"{st=$3} $1=="hardware"{mac=$3} /^}/{print ip, mac, st}' /var/lib/dhcp/dhcpd.leases | sort -u`
-![dokumentasi](assets/4.leases-tengen.png)
+<img width="768" height="162" alt="4 ip-mac-status" src="https://github.com/user-attachments/assets/88968944-e248-4a2a-ad00-7347bceff3e8" />
 
 - Pada `tengen`, membuktikan rentang `.2.36–.2.69` tidak boleh dialokasikan (output harus kosong):
 `awk '/^lease/{print $2}' /var/lib/dhcp/dhcpd.leases | grep -E '^192\.242\.2\.(3[6-9]|[4-6][0-9])$'`
@@ -202,16 +201,13 @@ cat /etc/resolv.conf
 ```
 
 - `ino` 
-![dokumentasi](assets/5.testing-ino.png)
+<img width="766" height="510" alt="5 lease-ino" src="https://github.com/user-attachments/assets/d4e6ff83-c58d-43b6-8810-4276d2308fe3" />
 
 - `kusakabe` 
-![dokumentasi](assets/5.testing-kusakabe.png)
+<img width="761" height="515" alt="5 lease-kusakabe" src="https://github.com/user-attachments/assets/4fdfdcdb-bfcc-4460-b92d-13b1ae79087e" />
 
 - `miwa` 
-![dokumentasi](assets/5.testing-miwa.png)
-
-- DNS dan domain-search:
-![dokumentasi](assets/5.dns-domain-search.png)
+<img width="766" height="511" alt="5 lease-miwa" src="https://github.com/user-attachments/assets/7df44f8f-f92b-40ba-8539-e5e3fa9d16ba" />
 
 Kemudian, cek bukti lease time di `tengen`
 
@@ -219,7 +215,8 @@ Kemudian, cek bukti lease time di `tengen`
 grep -E "^lease|starts|ends|hardware" /var/lib/dhcp/dhcpd.leases
 ```
 
-![dokumentasi](assets/5.lease-time-tengen.png)
+<img width="762" height="345" alt="5 lease-time" src="https://github.com/user-attachments/assets/4fe3fcee-fafa-4e38-8ca7-472caaca8763" />
+
 
 ## Soal 6.
 Kugisaki ditetapkan sebagai personel VIP yang harus mempertahankan alamat yang sama setiap kali terhubung. Buat DHCP static lease berdasarkan MAC Address client tersebut dengan fixed address [PREFIX IP].3.99. Pastikan alamat ini berada di luar seluruh pool dinamis, validasi konfigurasi server, lalu renew lease pada client. Buktikan bahwa alamat yang diterima sesuai dengan reservasi.
@@ -232,13 +229,13 @@ ip addr flush dev eth0
 rm -f /var/lib/dhcp/dhclient*.leases
 dhclient -v eth0
 ```
-![dokumentasi](assets/6.testing-kugisaki-1.png)
+<img width="763" height="417" alt="6 lease-kugisaki" src="https://github.com/user-attachments/assets/7df6806f-b574-4114-aede-15157e09aa64" />
 
 - DI `tengen`, kita perlu bukti DHCP penuh untuk `kugisaki`:
 ```bash
 tcpdump -l -n -vvv -i eth0 '(udp port 67 or udp port 68) and udp[36:4]=0xdeadbeef and udp[40:2]=0x6201' | grep -E "Request from|Reply|Gateway-IP|Your-IP|Message \(53\)|Requested-IP|Lease-Time"
 ```
-![dokumentasi](assets/6.tcpdump-kugisaki.png)
+<img width="762" height="796" alt="6 DHCP-static-lease" src="https://github.com/user-attachments/assets/d16d3d56-3b61-4a48-aefd-ae7d9eb1002c" />
 
 ## Soal 7.
 Setelah aturan alokasi diterapkan, pastikan setiap client menerima konfigurasi jaringan sesuai wilayahnya: subnet mask 255.255.255.0 (/24), gateway dan broadcast address yang benar, DNS [PREFIX IP].1.2 serta [PREFIX IP].1.3, dan domain-search yang ditentukan. Periksa IP address dan routing seluruh client Divisi A dan Divisi B, kemudian cocokkan lease dengan /var/lib/dhcp/dhcpd.leases pada tengen. Pastikan tidak ada alamat yang bertabrakan atau berada di luar kebijakan pool.
