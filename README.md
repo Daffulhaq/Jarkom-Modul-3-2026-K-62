@@ -56,6 +56,190 @@ Memastikan `tengen` aktif (menggunakan command `pgrep -a dhcpd`)
 
 - `tengen`cek entri leases dengan `cat /var/lib/dhcp/dhcpd.leases`
 
+## Soal 4.
+Agar tim Dev dan Support di Divisi A menerima jatah alamat yang berbeda, atur dua pool DHCP pada Network 2. Tetapkan Pool 1 ([PREFIX IP].2.10–[PREFIX IP].2.35) untuk itadori dan fushiguro, serta Pool 2 ([PREFIX IP].2.70–[PREFIX IP].2.95) untuk zenin dan okkotsu. Rentang [PREFIX IP].2.36–[PREFIX IP].2.69 tidak boleh dialokasikan. Karena seluruh client berada pada subnet yang sama, gunakan DHCP class berdasarkan MAC Address atau Client ID untuk memisahkan kedua kelompok.
+
+### Pengerjaan
+Setiap client memakai MAC Address tetap agar bisa dikenali oleh class (diatur pada script client):
+
+| Client | MAC Address |
+| :--- | :--- |
+| itadori | `de:ad:be:ef:62:02` |
+| fushiguro | `de:ad:be:ef:62:03` |
+| zenin | `de:ad:be:ef:62:04` |
+| okkotsu | `de:ad:be:ef:62:05` |
+
+Konfigurasi untuk Soal 4 (class berdasarkan MAC dengan `match hardware`, lalu dua pool pada subnet Network 2):
+
+```
+class "pool1" { match hardware; }
+subclass "pool1" 1:de:ad:be:ef:62:02;   # itadori
+subclass "pool1" 1:de:ad:be:ef:62:03;   # fushiguro
+
+class "pool2" { match hardware; }
+subclass "pool2" 1:de:ad:be:ef:62:04;   # zenin
+subclass "pool2" 1:de:ad:be:ef:62:05;   # okkotsu
+
+subnet 192.242.2.0 netmask 255.255.255.0 {
+    option routers 192.242.2.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 192.242.2.255;
+
+    pool {
+        range 192.242.2.10 192.242.2.35;
+        allow members of "pool1";
+    }
+    pool {
+        range 192.242.2.70 192.242.2.95;
+        allow members of "pool2";
+    }
+}
+```
+
+Angka `1:` pada subclass adalah hardware type Ethernet. Rentang `.36–.69` tidak dimasukkan ke `range` mana pun sehingga tidak pernah dialokasikan, dan client dengan MAC di luar daftar tidak masuk class sehingga tidak mendapat IP.
+
+### Testing
+Pada masing-masing client (`itadori`, `fushiguro`, `zenin`, `okkotsu`), buang lease lama agar proses DORA berjalan penuh, lalu minta lease baru:
+
+```bash
+pkill dhclient
+ip addr flush dev eth0
+rm -f /var/lib/dhcp/dhclient*.leases
+dhclient -v eth0
+ip -br addr show eth0
+ip route
+```
+
+- `itadori` 
+![dokumentasi](assets/4.testing-itadori.png)
+
+- `fushiguro` 
+![dokumentasi](assets/4.testing-fushiguro.png)
+
+- `zenin` 
+![dokumentasi](assets/4.testing-zenin.png)
+
+- `okkotsu` 
+![dokumentasi](assets/4.testing-okkotsu.png)
+
+- Pada `tengen`, ringkasan lease (IP, MAC, status):
+`awk '/^lease/{ip=$2} $1=="binding"{st=$3} $1=="hardware"{mac=$3} /^}/{print ip, mac, st}' /var/lib/dhcp/dhcpd.leases | sort -u`
+![dokumentasi](assets/4.leases-tengen.png)
+
+- Pada `tengen`, membuktikan rentang `.2.36–.2.69` tidak boleh dialokasikan (output harus kosong):
+`awk '/^lease/{print $2}' /var/lib/dhcp/dhcpd.leases | grep -E '^192\.242\.2\.(3[6-9]|[4-6][0-9])$'`
+![dokumentasi](assets/4.range-terlarang.png)
+
+## Soal 5.
+Setiap tim lapangan memiliki durasi operasi yang berbeda. Pada Network 3, berikan short lease 30 menit (1800 detik) kepada ino dan kusakabe, serta long lease 12 jam (43200 detik) kepada miwa. Gunakan pool short lease [PREFIX IP].3.10–[PREFIX IP].3.89 dan pool long lease [PREFIX IP].3.100–[PREFIX IP].3.199. Sesuaikan default-lease-time dan max-lease-time untuk setiap kelas client. Berikan pula DHCP options berupa DNS [PREFIX IP].1.2 dan [PREFIX IP].1.3, serta domain-search <xxxx>.com.
+
+### Pengerjaan
+Pada `dhcpd.conf` di `tengen`, DHCP options (DNS dan domain-search) diletakkan di bagian global sehingga berlaku untuk Network 2 maupun Network 3:
+
+```
+authoritative;
+default-lease-time 600;
+max-lease-time 7200;
+option domain-name-servers 192.242.1.2, 192.242.1.3;
+option domain-search "K62.com";
+```
+
+Class untuk tiap kelompok lease:
+
+| Client | MAC Address | Class |
+| :--- | :--- | :--- |
+| ino | `de:ad:be:ef:62:06` | short-lease |
+| kusakabe | `de:ad:be:ef:62:07` | short-lease |
+| miwa | `de:ad:be:ef:62:08` | long-lease |
+
+```
+class "short-lease" {
+    match hardware;
+    default-lease-time 1800;
+    max-lease-time 1800;
+}
+subclass "short-lease" 1:de:ad:be:ef:62:06;   # ino
+subclass "short-lease" 1:de:ad:be:ef:62:07;   # kusakabe
+
+class "long-lease" {
+    match hardware;
+    default-lease-time 43200;
+    max-lease-time 43200;
+}
+subclass "long-lease" 1:de:ad:be:ef:62:08;    # miwa
+```
+
+Subnet Network 3 dengan dua pool:
+
+```
+subnet 192.242.3.0 netmask 255.255.255.0 {
+    option routers 192.242.3.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 192.242.3.255;
+
+    pool {
+        range 192.242.3.10 192.242.3.89;
+        allow members of "short-lease";
+    }
+    pool {
+        range 192.242.3.100 192.242.3.199;
+        allow members of "long-lease";
+    }
+}
+```
+
+### Testing
+Pada `ino`, `kusakabe`, dan `miwa`, minta lease baru:
+
+```bash
+pkill dhclient
+ip addr flush dev eth0
+rm -f /var/lib/dhcp/dhclient*.leases
+dhclient -v eth0
+ip -br addr show eth0
+ip route
+cat /etc/resolv.conf
+```
+
+- `ino` 
+![dokumentasi](assets/5.testing-ino.png)
+
+- `kusakabe` 
+![dokumentasi](assets/5.testing-kusakabe.png)
+
+- `miwa` 
+![dokumentasi](assets/5.testing-miwa.png)
+
+- DNS dan domain-search:
+![dokumentasi](assets/5.dns-domain-search.png)
+
+Kemudian, cek bukti lease time di `tengen`
+
+```
+grep -E "^lease|starts|ends|hardware" /var/lib/dhcp/dhcpd.leases
+```
+
+![dokumentasi](assets/5.lease-time-tengen.png)
+
+## Soal 6.
+Kugisaki ditetapkan sebagai personel VIP yang harus mempertahankan alamat yang sama setiap kali terhubung. Buat DHCP static lease berdasarkan MAC Address client tersebut dengan fixed address [PREFIX IP].3.99. Pastikan alamat ini berada di luar seluruh pool dinamis, validasi konfigurasi server, lalu renew lease pada client. Buktikan bahwa alamat yang diterima sesuai dengan reservasi.
+
+### Testing
+- Pada `kugisaki`, minta lease baru:
+```bash
+pkill dhclient
+ip addr flush dev eth0
+rm -f /var/lib/dhcp/dhclient*.leases
+dhclient -v eth0
+```
+![dokumentasi](assets/6.testing-kugisaki-1.png)
+
+- DI `tengen`, kita perlu bukti DHCP penuh untuk `kugisaki`:
+```bash
+tcpdump -l -n -vvv -i eth0 '(udp port 67 or udp port 68) and udp[36:4]=0xdeadbeef and udp[40:2]=0x6201' | grep -E "Request from|Reply|Gateway-IP|Your-IP|Message \(53\)|Requested-IP|Lease-Time"
+```
+![dokumentasi](assets/6.tcpdump-kugisaki.png)
+
 ## Soal 7.
 Setelah aturan alokasi diterapkan, pastikan setiap client menerima konfigurasi jaringan sesuai wilayahnya: subnet mask 255.255.255.0 (/24), gateway dan broadcast address yang benar, DNS [PREFIX IP].1.2 serta [PREFIX IP].1.3, dan domain-search yang ditentukan. Periksa IP address dan routing seluruh client Divisi A dan Divisi B, kemudian cocokkan lease dengan /var/lib/dhcp/dhcpd.leases pada tengen. Pastikan tidak ada alamat yang bertabrakan atau berada di luar kebijakan pool.
 
@@ -228,3 +412,189 @@ Ringkasan hasil, menunjukkan kebijakan pool, lease, dan fixed address tetap berl
 | kusakabe | `192.242.3.11` | Short lease (`.3.10–.3.89`) | `192.242.3.1` | 1766 | 0% loss |
 | miwa | `192.242.3.100` | Long lease (`.3.100–.3.199`) | `192.242.3.1` | 43181 | 0% loss |
 | kugisaki | `192.242.3.99` | Fixed address | `192.242.3.1` | 600 | 0% loss |
+
+## Soal 11
+Utahime dan Shoko ditugaskan membangun sistem penamaan domain resmi agar seluruh pos tidak perlu menghafal alamat IP mentah. Konfigurasikan BIND9 pada utahime sebagai DNS Master dan shoko sebagai DNS Slave untuk mengelola domain jujutsu.<xxxx>.com. Atur SOA record, NS delegasi untuk kedua server, dan terapkan allow-transfer dari Master ke Slave. Pastikan file zona berhasil tersinkronisasi otomatis ke shoko saat nomor serial di utahime dinaikkan, lalu buktikan dengan melakukan query dig ke kedua server dari salah satu client.
+
+### Pengerjaan
+
+Untuk pengerjaan soal ini, jalankan `master.sh` di utahime dan `slave.sh` di shoko.
+
+### Testing
+- Cek master (`utahime`):
+```bash
+dig @192.242.1.2 jujutsu.K62.com NS +noall +answer
+dig @192.242.1.2 jujutsu.K62.com SOA +noall +answer
+```
+![dokumentasi](assets/11.bind9-aktif-utahime.png)
+
+- Cek slave (`shoko`):
+```bash
+ls -l /var/lib/bind/
+dig @192.242.1.3 jujutsu.K62.com SOA +noall +answer
+```
+![dokumentasi](assets/11.bind9-aktif-shoko.png)
+![dokumentasi](assets/11.zone-file-slave.png)
+
+- Uji sinkronisasi serial:
+```bash
+# Di utahime:
+sed -i 's/2024101401/2024101402/' /etc/bind/jarkom/jujutsu.K62.com
+named-checkzone jujutsu.K62.com /etc/bind/jarkom/jujutsu.K62.com
+service named restart
+
+# Di shoko:
+dig @192.242.1.3 jujutsu.K62.com SOA +noall +answer
+```
+![dokumentasi](assets/11.sinkronisasi-serial.png)
+
+## Soal 12
+Peta domain harus memetakan pintu masuk utama dan tetap bisa mencari alamat di luar kawasan Shibuya. Pada utahime, buat A record jujutsu.<xxxx>.com yang mengarah ke gojo, serta CNAME www yang merujuk ke domain utama tersebut. Buat pula Reverse DNS (zona PTR) untuk melacak IP gojo kembali ke domain resminya, dan aktifkan fitur DNS Forwarder pada BIND9 mengarah ke IP gateway internet (192.168.122.1). Uji dari client dengan dig untuk mengecek CNAME, PTR, dan buktikan client tetap bisa melakukan ping ke domain internet seperti google.com.
+
+### Testing 
+
+Testing dilakukan di node client (contohnya `itadori`)
+```bash
+cat /etc/resolv.conf
+dig jujutsu.K62.com +noall +answer
+dig www.jujutsu.K62.com +noall +answer
+dig -x 192.242.1.4 +noall +answer
+dig google.com +short
+ping -c 3 google.com
+```
+![dokumentasi](assets/12.dig-a-record.png)
+![dokumentasi](assets/12.dig-cname.png)
+![dokumentasi](assets/12.dig-ptr.png)
+![dokumentasi](assets/12.ping-google.png)
+
+## Soal 13
+Kepala Sekolah Yaga dan Inumaki mendirikan database terpusat yang redundan agar log aktivitas kutukan tetap aman tersimpan. Konfigurasikan MariaDB pada yaga sebagai DB-Master dan inumaki sebagai DB-Slave. Buat database db_shibuya_<xxxx> beserta tabel request_logs di Master, aktifkan binary logging (log-bin, server-id), lalu hubungkan inumaki sebagai Slave yang menyalin data secara realtime dengan CHANGE MASTER TO. Berikan hak akses remote bagi seluruh node di Network 4, lalu buktikan replikasi berhasil dengan memasukkan data baru di Master dan memeriksa hasilnya di Slave.
+
+### Pengerjaan
+Jalankan master `yaga` terlebih dahulu, lalu slave `inumaki`:
+
+```bash
+# Di yaga:
+./yaga.sh
+
+# Di inumaki:
+./inumaki.sh
+```
+
+### Testing
+- Di `yaga` (master):
+```bash
+mysql -e "SHOW MASTER STATUS\G"
+mysql -e "USE db_shibuya_K62; SHOW TABLES;"
+mysql -e "SELECT user, host FROM mysql.user WHERE user IN ('shibuya','repl');"
+```
+![dokumentasi](assets/13.master-status.png)
+
+- Di `inumaki` (slave):
+```bash
+mysql -e "SHOW SLAVE STATUS\G" | grep -E "Slave_IO_Running|Slave_SQL_Running|Seconds_Behind_Master|Last_.*Error"
+```
+![dokumentasi](assets/13.slave-status.png)
+
+- Uji replikasi:
+```bash
+# Di yaga:
+mysql -e "USE db_shibuya_K62; INSERT INTO request_logs (worker, endpoint, client_ip) VALUES ('uji-master','/test','192.242.9.9');"
+
+# Di inumaki:
+mysql -e "SELECT * FROM db_shibuya_K62.request_logs ORDER BY id DESC LIMIT 3;"
+```
+![dokumentasi](assets/13.replikasi-bukti.png)
+
+- Uji hak akses remote (dari node lain):
+```bash
+apt-get update && apt-get install -y mariadb-client
+mysql -h 192.242.4.11 -ushibuya -pshibuya123 -e "SELECT COUNT(*) FROM db_shibuya_K62.request_logs;"
+```
+![dokumentasi](assets/13.remote-access.png)
+
+## Soal 14
+Para penyihir lapangan bersiaga di Data Center sebagai pekerja backend untuk memproses aplikasi. Pasang Nginx dan PHP-FPM pada maki dan panda untuk menyajikan web frontend yang menampilkan hostname masing-masing. Pada nanami, todo, dan kirara, siapkan layanan API yang mencatat log request ke database yaga. Konfigurasikan virtual host agar worker merespons domain layanan yang ditentukan. Batasi akses langsung dari klien ke worker, web worker hanya menerima trafik melalui jalur proxy web yang ditentukan, sedangkan worker API hanya menerima trafik melalui geto. Uji bahwa akses langsung dari klien ditolak, sementara akses melalui reverse proxy tetap berhasil.
+
+### Pengerjaan
+Jalankan file config pada node `maki`, `panda`, `nanami`, `todo`, dan `kirara` sebelum melakukan testing.
+
+### Testing
+- Akses lokal:
+```bash
+# Di maki, panda, nanami, todo, kirara:
+curl -s http://127.0.0.1
+```
+![dokumentasi](assets/14.worker-lokal.png)
+![dokumentasi](assets/14.api-lokal.png)
+
+- Akses langsung dari client:
+```bash
+# DI itadori:
+curl -s -o /dev/null -w "%{http_code}\n" http://192.242.4.21  
+curl -s -o /dev/null -w "%{http_code}\n" http://192.242.4.23  
+```
+![dokumentasi](assets/14.direct-denied.png)
+
+## Soal 15
+Geto bertugas mengendalikan pembagian beban request API di internal Data Center agar server tidak tumbang bersamaan. Konfigurasikan Nginx pada geto sebagai Load Balancer internal dengan upstream api_cluster yang mengarahkan trafik ke nanami dan todo. Terapkan algoritma Weighted Round Robin dengan bobot 3:1, di mana nanami menerima porsi beban tiga kali lebih banyak daripada todo. Buktikan distribusi beban ini dengan melakukan loop request berulang kali ke geto dari jaringan lokal Data Center dan periksa rasio responnya.
+
+
+### Pengerjaan
+Jalankan file `geto.sh` di node geto.
+
+### Testing
+Dari node Network 4 (misal yaga):
+
+```bash
+apt-get install -y curl 2>/dev/null
+for i in $(seq 1 40); do
+  curl -s http://192.242.4.20/ | grep -o '"worker":"[a-z]*"'
+done | sort | uniq -c
+```
+![dokumentasi](assets/15.wrr-geto.png)
+
+## Soal 16
+Gojo berdiri di perbatasan DMZ sebagai gerbang publik tunggal bagi seluruh client dari luar maupun dalam. Konfigurasikan Nginx pada gojo untuk melayani domain jujutsu.<xxxx>.com dan www.jujutsu.<xxxx>.com menggunakan metode Path-Based Routing. Atur agar request root (/) diteruskan secara Round Robin ke worker frontend (maki dan panda), sedangkan request ke path /api diteruskan langsung ke geto. Uji dari client Divisi A atau B bahwa akses ke web utama dibalas oleh Maki/Panda, sedangkan akses ke /api diteruskan dan dijawab oleh Nanami/Todo.
+
+### Pengerjaan
+Jalankan file `soal16.sh` pada node gojo.
+
+### Testing
+Dari client:
+
+```bash
+apt-get update && apt-get install -y curl dnsutils
+
+# Round Robin maki/panda
+for i in $(seq 1 20); do
+  curl -s "http://jujutsu.K62.com/?nocache=$RANDOM"
+  echo
+done | grep -oi "Hostname: [a-z]*" | sort | uniq -c
+
+# /api -> geto
+for i in $(seq 1 4); do
+  curl -s "http://jujutsu.K62.com/api"
+  echo
+done
+```
+![dokumentasi](assets/16.gojo-rr-frontend.png)
+![dokumentasi](assets/16.gojo-api-geto.png)
+
+## Soal 17
+Komando pusat perlu mengetahui IP asli klien yang mengirimkan request tanpa tertukar dengan IP proxy perantara. Konfigurasikan gojo dan geto agar meneruskan informasi alamat klien melalui header X-Real-IP dan X-Forwarded-For. Pastikan geto hanya mempercayai informasi alamat klien yang diterima dari proxy terpercaya, dan skrip API menyimpan alamat klien yang telah diverifikasi ke kolom client_ip pada tabel request_logs di database yaga. Uji dengan mengirimkan request dari klien Network 2 dan Network 3 ke endpoint /api, kemudian periksa database untuk memastikan alamat yang tercatat sesuai dengan IP klien asal, bukan IP gojo atau geto.
+
+### Testing
+
+```bash
+# Di itadori:
+curl -s "http://jujutsu.K62.com/api"; echo
+
+# Di ino:
+curl -s "http://jujutsu.K62.com/api"; echo
+
+# Di yaga:
+mysql -e "SELECT id, worker, client_ip, created_at FROM db_shibuya_K62.request_logs ORDER BY id DESC LIMIT 6;"
+```
+![dokumentasi](assets/17.api-request-clients.png)
+![dokumentasi](assets/17.db-client-ip.png)
