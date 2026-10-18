@@ -418,6 +418,131 @@ Utahime dan Shoko ditugaskan membangun sistem penamaan domain resmi agar seluruh
 
 Untuk pengerjaan soal ini, jalankan `master.sh` di utahime dan `slave.sh` di shoko.
 
+Script `master.sh`:
+```bash
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+
+echo "nameserver 192.168.122.1" > /etc/resolv.conf
+ip addr flush dev eth0
+ip link set eth0 up
+ip addr add 192.242.1.2/24 dev eth0
+ip route add default via 192.242.1.1
+
+apt-get update
+apt-get install -y bind9 bind9-utils bind9-doc || apt-get install -y bind9 bind9utils bind9-doc
+
+mkdir -p /etc/bind/jarkom
+
+cat > /etc/bind/named.conf.options <<'EOF'
+options {
+    directory "/var/cache/bind";
+    recursion yes;
+    allow-query { any; };
+    forwarders { 192.168.122.1; };
+    dnssec-validation no;
+    listen-on { any; };
+    listen-on-v6 { any; };
+};
+EOF
+
+cat > /etc/bind/named.conf.local <<'EOF'
+zone "jujutsu.K62.com" {
+    type master;
+    file "/etc/bind/jarkom/jujutsu.K62.com";
+    allow-transfer { 192.242.1.3; };
+};
+
+zone "1.242.192.in-addr.arpa" {
+    type master;
+    file "/etc/bind/jarkom/1.242.192.in-addr.arpa";
+    allow-transfer { 192.242.1.3; };
+};
+EOF
+
+cat > /etc/bind/jarkom/jujutsu.K62.com <<'EOF'
+$TTL 604800
+@   IN  SOA utahime.jujutsu.K62.com. admin.jujutsu.K62.com. (
+        2024101401  ; Serial
+        604800      ; Refresh
+        86400       ; Retry
+        2419200     ; Expire
+        604800 )    ; Negative Cache TTL
+;
+@       IN  NS      utahime.jujutsu.K62.com.
+@       IN  NS      shoko.jujutsu.K62.com.
+@       IN  A       192.242.1.4
+www     IN  CNAME   jujutsu.K62.com.
+utahime IN  A       192.242.1.2
+shoko   IN  A       192.242.1.3
+gojo    IN  A       192.242.1.4
+EOF
+
+cat > /etc/bind/jarkom/1.242.192.in-addr.arpa <<'EOF'
+$TTL 604800
+@   IN  SOA utahime.jujutsu.K62.com. admin.jujutsu.K62.com. (
+        2024101401  ; Serial
+        604800      ; Refresh
+        86400       ; Retry
+        2419200     ; Expire
+        604800 )    ; Negative Cache TTL
+;
+@       IN  NS      utahime.jujutsu.K62.com.
+@       IN  NS      shoko.jujutsu.K62.com.
+4       IN  PTR     jujutsu.K62.com.
+EOF
+
+named-checkconf
+named-checkzone jujutsu.K62.com /etc/bind/jarkom/jujutsu.K62.com
+named-checkzone 1.242.192.in-addr.arpa /etc/bind/jarkom/1.242.192.in-addr.arpa
+service named restart
+echo "Utahime as DNS Master ready."
+```
+
+Script `slave.sh`:
+```bash
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+
+echo "nameserver 192.168.122.1" > /etc/resolv.conf
+ip addr flush dev eth0
+ip link set eth0 up
+ip addr add 192.242.1.3/24 dev eth0
+ip route add default via 192.242.1.1
+
+apt-get update
+apt-get install -y bind9 bind9-utils || apt-get install -y bind9 bind9utils
+
+cat > /etc/bind/named.conf.options <<'EOF'
+options {
+    directory "/var/cache/bind";
+    recursion no;
+    allow-query { any; };
+    dnssec-validation no;
+    listen-on { any; };
+    listen-on-v6 { any; };
+};
+EOF
+
+cat > /etc/bind/named.conf.local <<'EOF'
+zone "jujutsu.K62.com" {
+    type slave;
+    masters { 192.242.1.2; };
+    file "/var/lib/bind/jujutsu.K62.com";
+};
+
+zone "1.242.192.in-addr.arpa" {
+    type slave;
+    masters { 192.242.1.2; };
+    file "/var/lib/bind/1.242.192.in-addr.arpa";
+};
+EOF
+
+named-checkconf
+service named restart
+echo "Shoko as DNS Slave ready."
+```
+
 ### Testing
 - Cek master (`utahime`):
 ```bash
@@ -569,6 +694,71 @@ Gojo berdiri di perbatasan DMZ sebagai gerbang publik tunggal bagi seluruh clien
 
 ### Pengerjaan
 Jalankan file `soal16.sh` pada node gojo.
+
+Script `soal16.sh`:
+```bash
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+
+echo "nameserver 192.168.122.1" > /etc/resolv.conf
+ip addr flush dev eth0
+ip link set eth0 up
+ip addr add 192.242.1.4/24 dev eth0
+ip route add default via 192.242.1.1
+
+apt-get update
+apt-get install -y nginx
+
+sed -i 's/^worker_processes.*/worker_processes 1;/' /etc/nginx/nginx.conf
+
+mkdir -p /var/cache/nginx/web_cache
+chown -R www-data:www-data /var/cache/nginx
+
+cat > /etc/nginx/sites-enabled/default <<'EOF'
+
+proxy_cache_path /var/cache/nginx/web_cache levels=1:2 keys_zone=web_cache:>
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+limit_req_status 429;
+
+upstream frontend_cluster {
+    server 192.242.4.21;
+    server 192.242.4.22;
+}
+
+server {
+    listen 80;
+    server_name jujutsu.K62.com www.jujutsu.K62.com;
+
+    location / {
+        proxy_pass http://frontend_cluster;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_cache web_cache;
+        proxy_cache_valid 200 10m;
+        proxy_cache_methods GET HEAD;
+        proxy_cache_bypass $arg_nocache;
+        proxy_no_cache $arg_nocache;
+        add_header X-Cache-Status $upstream_cache_status;
+    }
+
+    location /api {
+        limit_req zone=api_limit burst=5 nodelay;
+
+        proxy_pass http://192.242.4.20;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+nginx -t && service nginx restart
+echo "Reverse proxy ready."
+```
 
 ### Testing
 Dari client:
